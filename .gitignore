@@ -1,0 +1,20 @@
+# Virtual Environment
+env/
+venv/
+ENV/
+.venv/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Local Configurations & DB Secrets
+.env
+
+# IDE / System files
+.vscode/
+.idea/
+.DS_Store
