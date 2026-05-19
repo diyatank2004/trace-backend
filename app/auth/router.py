@@ -85,7 +85,7 @@ def admin_permanently_delete_user(
     if not target_user:
         raise HTTPException(status_code=404, detail="Target user account matching Employee ID not found.")
 
-    # 4. Trigger deletion (On-delete Cascade clears related workspace association entries automatically)
+    # 4. Trigger deletion (On-delete Cascade clears related project association entries automatically)
     db.delete(target_user)
     db.commit()
 

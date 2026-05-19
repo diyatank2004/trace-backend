@@ -6,11 +6,11 @@ from app.database import engine, Base
 
 # Important: Import models so SQLAlchemy binds metadata BEFORE creating tables
 from app.auth.models import User
-from app.workspaces.models import Workspace, WorkspaceMember
+from app.projects.models import Project, ProjectMember
 
 # Import modular routers
 from app.auth.router import router as auth_router
-from app.workspaces.router import router as workspace_router
+from app.projects.router import router as project_router
 
 # Synchronize schemas with PostgreSQL database
 Base.metadata.create_all(bind=engine)
@@ -29,7 +29,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
-app.include_router(workspace_router)
+app.include_router(project_router)
 
 @app.get("/")
 def check_health():

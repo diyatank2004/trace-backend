@@ -27,8 +27,8 @@ class User(Base):
 
     # FIXED: Added foreign_keys string matching the exact junction table relationship target
     memberships = relationship(
-        "WorkspaceMember", 
+        "ProjectMember", 
         back_populates="user", 
         cascade="all, delete-orphan",
-        foreign_keys="[WorkspaceMember.user_id]"
+        foreign_keys="[ProjectMember.user_id]"
     )
