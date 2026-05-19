@@ -3,11 +3,13 @@ import string
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import get_db
-from app.auth.models import User
-from app.projects.models import Project, ProjectMember, ProjectRole
-from app.projects.schemas import ProjectCreateRequest, ProjectResponse, MemberJoinRequest, EmployeeDashboardOverview, ProjectSummaryResponse
+from app.auth.models import Employee, GlobalRole
+from app.projects.models import Project, ProjectMember, ProjectRole, CorporateDesignation
+from app.projects.schemas import ProjectCreateRequest, ProjectResponse, MemberJoinProjectRequest, EmployeeDashboardOverview, ProjectSummaryResponse, AdminDashboardOverview, RecentUserLog
+from app.auth.dependencies import get_current_user
 
 router = APIRouter(prefix="/projects", tags=["Project Management"])
 
@@ -17,7 +19,7 @@ def generate_secure_project_key() -> str:
 
 @router.post("/create", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 def create_project_as_team_leader(data: ProjectCreateRequest, db: Session = Depends(get_db)):
-    leader_user = db.query(User).filter(User.employee_id == data.employee_id).first()
+    leader_user = db.query(Employee).filter(Employee.employee_id == data.employee_id).first()
     if not leader_user:
         raise HTTPException(
             status_code=404, 
@@ -48,8 +50,8 @@ def create_project_as_team_leader(data: ProjectCreateRequest, db: Session = Depe
     return new_project
 
 @router.post("/join", status_code=status.HTTP_200_OK)
-def join_project_as_member(data: MemberJoinRequest, db: Session = Depends(get_db)):
-    member_user = db.query(User).filter(User.employee_id == data.employee_id).first()
+def join_project_as_member(data: MemberJoinProjectRequest, db: Session = Depends(get_db)):
+    member_user = db.query(Employee).filter(Employee.employee_id == data.employee_id).first()
     if not member_user:
         raise HTTPException(status_code=404, detail="Employee ID record matching profile metrics not found.")
 
@@ -68,7 +70,8 @@ def join_project_as_member(data: MemberJoinRequest, db: Session = Depends(get_db
         user_id=member_user.id,
         project_id=project.id,
         employee_id=member_user.employee_id,
-        role=ProjectRole.MEMBER
+        role=ProjectRole.MEMBER,
+        designation=data.designation
     )
     db.add(new_membership)
     db.commit()
@@ -83,7 +86,7 @@ def join_project_as_member(data: MemberJoinRequest, db: Session = Depends(get_db
 @router.delete("/{project_id}/delete/{employee_id}", status_code=status.HTTP_200_OK)
 def delete_project_as_team_leader(project_id: UUID, employee_id: str, db: Session = Depends(get_db)):
     # 1. Fetch user making the request
-    requesting_user = db.query(User).filter(User.employee_id == employee_id).first()
+    requesting_user = db.query(Employee).filter(Employee.employee_id == employee_id).first()
     if not requesting_user:
         raise HTTPException(status_code=404, detail="Employee ID records do not exist.")
 
@@ -121,7 +124,7 @@ def delete_project_as_team_leader(project_id: UUID, employee_id: str, db: Sessio
 def get_employee_dashboard_overview(employee_id: str, db: Session = Depends(get_db)):
     """Fetches the unified workspace view containing all projects this user participates in."""
     # 1. Find the employee profile record
-    user = db.query(User).filter(User.employee_id == employee_id).first()
+    user = db.query(Employee).filter(Employee.employee_id == employee_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Employee record not found.")
 
@@ -147,4 +150,59 @@ def get_employee_dashboard_overview(employee_id: str, db: Session = Depends(get_
         "full_name": user.full_name,
         "email": user.email,
         "active_projects": project_list
+    }
+
+# --- SECURED ADMIN DASHBOARD CORE GETTER ---
+@router.get("/admin/overview-stats", response_model=AdminDashboardOverview)
+def get_admin_dashboard_metrics(
+    db: Session = Depends(get_db),
+    current_admin: Employee = Depends(get_current_user)  # Extract & verify bearer token
+):
+    """Aggregates corporate global metrics to populate the Admin high-level supervision console."""
+    # 1. Security Guard: Enforce that the user is explicitly an Admin
+    if current_admin.global_role != GlobalRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access Denied. Only system administrators can pull administrative analytics."
+        )
+
+    # 2. Compute overall counts
+    total_projects_count = db.query(Project).count()
+    
+    # We count only users who are corporate employees (filtering out other admin profiles)
+    total_employees_count = db.query(Employee).filter(Employee.global_role == GlobalRole.USER).count()
+
+    # 3. Compute dynamic breakdown of professional corporate designations inside project groups
+    # Group by the ProjectMember designation enum and aggregate counts
+    designation_query = db.query(
+        ProjectMember.designation, 
+        func.count(ProjectMember.user_id)
+    ).group_by(ProjectMember.designation).all()
+
+    # Translate database results safely into a clean dictionary map for the UI graphs
+    breakdown_map = {}
+    for enum_val, count in designation_query:
+        if enum_val:
+            breakdown_map[enum_val.value] = count
+
+    # 4. Fetch the 5 most recently onboarded employees to populate a 'Recent Activity' stream feed
+    recent_users = db.query(Employee).filter(
+        Employee.global_role == GlobalRole.USER
+    ).order_by(Employee.created_at.desc()).limit(5).all()
+
+    recent_logs_list = []
+    for u in recent_users:
+        recent_logs_list.append({
+            "employee_id": u.employee_id or "N/A",
+            "full_name": u.full_name,
+            "email": u.email or "N/A",
+            "created_at": u.created_at
+        })
+
+    # 5. Return unified analytics response payload package
+    return {
+        "total_projects": total_projects_count,
+        "total_employees": total_employees_count,
+        "designation_breakdown": breakdown_map,
+        "recent_registrations": recent_logs_list
     }

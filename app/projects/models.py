@@ -10,19 +10,28 @@ class ProjectRole(str, enum.Enum):
     TEAM_LEADER = "Team Leader"
     MEMBER = "Member"
 
+class CorporateDesignation(str, enum.Enum):
+    DEVELOPER = "Developer"
+    TESTER = "Tester"
+    DEVOPS = "DevOps Engineer"
+    DESIGNER = "UI/UX Designer"
+    PRODUCT_MANAGER = "Product Manager"
+    NOT_ASSIGNED = "Not Assigned"
+
 class ProjectMember(Base):
     __tablename__ = "project_members"
 
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("employees.id", ondelete="CASCADE"), primary_key=True)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
     
     role = Column(Enum(ProjectRole), nullable=False)
-    employee_id = Column(String(50), ForeignKey("users.employee_id", ondelete="CASCADE"), nullable=False)  
+    designation = Column(Enum(CorporateDesignation), nullable=False)
+    employee_id = Column(String(50), ForeignKey("employees.employee_id", ondelete="CASCADE"), nullable=False)  
     joined_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Explicit mapping definitions targeting column variables
-    user = relationship("User", back_populates="memberships", foreign_keys=[user_id])
-    project = relationship("Project", back_populates="members", foreign_keys=[project_id])
+    employee = relationship("Employee", back_populates="project_memberships", primaryjoin="ProjectMember.user_id == Employee.id")
+    project = relationship("Project", back_populates="members", primaryjoin="ProjectMember.project_id == Project.id")
 
 class Project(Base):
     __tablename__ = "projects"

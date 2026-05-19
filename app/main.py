@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
 
 # Important: Import models so SQLAlchemy binds metadata BEFORE creating tables
-from app.auth.models import User
+from app.auth.models import Employee
 from app.projects.models import Project, ProjectMember
 
 # Import modular routers
@@ -17,12 +17,13 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Trace Project Tracking Engine",
+    description="Corporate project tracking micro-infrastructure built for custom internal enterprise operations.",
     version="1.0.0"
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,6 +32,10 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(project_router)
 
-@app.get("/")
-def check_health():
-    return {"status": "healthy", "database": "synchronized"}
+@app.get("/", tags=["Root Context Health Verification Check"])
+def read_root():
+    return {
+        "status": "online",
+        "system": "FlowForge Platform",
+        "umbrella_scope": "Single-Company Workspace Hierarchy Enabled"
+    }

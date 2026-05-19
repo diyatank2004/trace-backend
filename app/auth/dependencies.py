@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from app.database import get_db
 from app.config import settings
-from app.auth.models import User
+from app.auth.models import Employee
 
 # FIXED: Change OAuth2PasswordBearer to HTTPBearer so Swagger expects a raw token header
 security_scheme = HTTPBearer()
@@ -13,7 +13,7 @@ security_scheme = HTTPBearer()
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme), 
     db: Session = Depends(get_db)
-) -> User:
+) -> Employee:
     """Decodes the incoming Authorization Bearer token header to find the active Admin profile."""
     exception_rule = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -35,7 +35,7 @@ def get_current_user(
         raise exception_rule
         
     # Query database to confirm user validity
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(Employee).filter(Employee.id == user_id).first()
     if not user:
         raise exception_rule
     return user
