@@ -1,6 +1,9 @@
+from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.database import get_db
+from app.config import settings  # Fixed: Load JWT expiration parameters natively
 from app.auth.models import Employee, GlobalRole
 from app.auth.schemas import (
     AdminSignupRequest, AdminLoginRequest, 
@@ -34,12 +37,17 @@ def admin_login(data: AdminLoginRequest, db: Session = Depends(get_db)):
     if not admin or not verify_password(data.password, admin.password_hash):
         raise HTTPException(status_code=401, detail="Invalid admin credentials.")
         
-    token = create_access_token({"sub": str(admin.id), "role": admin.global_role.value})
+    # Fixed: Compute custom token lifetime configurations to support full testing shifts
+    session_expiry_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    token = create_access_token(
+        data={"sub": str(admin.id), "role": admin.global_role.value},
+        expires_delta=session_expiry_delta
+    )
     return {"access_token": token, "token_type": "bearer"}
 
-# FIXED: Now populates all new profile telemetry elements entered manually on the screen
 @router.post("/user/register", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
 def employee_onboarding(data: EmployeeOnboardingRequest, db: Session = Depends(get_db)):
+    
     if db.query(Employee).filter(Employee.employee_id == data.employee_id).first():
         raise HTTPException(status_code=400, detail="Employee ID already registered in the platform database.")
         
